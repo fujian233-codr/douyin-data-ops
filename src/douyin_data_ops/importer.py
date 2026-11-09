@@ -21,6 +21,13 @@ from .parsers import (
     parse_duration_seconds,
     parse_rate,
 )
+from .mcp import (
+    SNAPSHOT_SOURCE,
+    SNAPSHOT_TOOL,
+    build_snapshot_rows,
+    collected_at_from_snapshot,
+    is_mcp_snapshot,
+)
 from .store import Database, utc_now
 
 
@@ -117,13 +124,18 @@ class DataImporter:
         files = sorted(
             candidate
             for candidate in path.iterdir()
-            if candidate.is_file() and candidate.suffix.lower() == ".csv"
+            if candidate.is_file()
+            and candidate.suffix.lower() in {".csv", ".json"}
         )
         return [self.import_file(candidate) for candidate in files]
 
     def import_file(self, path: Path) -> ImportSummary:
         source = path.resolve()
-        if not source.is_file() or source.suffix.lower() != ".csv":
+        if not source.is_file():
+            return ImportSummary(source.name, False, skip_reason="not_csv")
+        if source.suffix.lower() == ".json":
+            return self._import_mcp_snapshot(source)
+        if source.suffix.lower() != ".csv":
             return ImportSummary(source.name, False, skip_reason="not_csv")
 
         digest = sha256_file(source)
@@ -174,10 +186,105 @@ class DataImporter:
         }
 
     def _archive(self, source: Path, digest: str) -> Path:
-        destination = self.raw_directory / f"{digest}.csv"
+        destination = self.raw_directory / f"{digest}{source.suffix.lower()}"
         if not destination.exists():
             shutil.copy2(source, destination)
         return destination
+
+    def _import_mcp_snapshot(self, source: Path) -> ImportSummary:
+        digest = sha256_file(source)
+        if self.database.snapshot_exists(digest):
+            return ImportSummary(source.name, False, skip_reason="duplicate_sha256")
+
+        try:
+            payload = json.loads(source.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return ImportSummary(source.name, False, skip_reason="invalid_json")
+        if not is_mcp_snapshot(payload):
+            return ImportSummary(source.name, False, skip_reason="unrecognized_json")
+
+        parsed = build_snapshot_rows(payload)
+        works = parsed["works"]
+        if not works:
+            return ImportSummary(source.name, False, skip_reason="no_valid_work_rows")
+
+        collected_at = (
+            collected_at_from_snapshot(payload)
+            or datetime.now().isoformat(timespec="seconds")
+        )
+        snapshot_id = self.database.create_snapshot(
+            account_label=self.account_label,
+            source_tool=SNAPSHOT_TOOL,
+            collected_at=collected_at,
+            source_file=source.name,
+            sha256=digest,
+            kind="works",
+        )
+
+        metric_work_count = 0
+        for item in works:
+            self.database.upsert_work(
+                account_label=self.account_label,
+                video_id=item["video_id"],
+                title=item["title"],
+                publish_time=item["publish_time"],
+                duration_seconds=item["duration_seconds"],
+                status=item["status"],
+                content_kind=item["content_kind"],
+            )
+            metrics = item["metrics"]
+            has_metrics = metrics.get("play_count") is not None or any(
+                value is not None for value in metrics.values()
+            )
+            if has_metrics:
+                metric_work_count += 1
+            raw_payload = {
+                "aweme": item.get("raw"),
+                **item.get("enrichment", {}),
+            }
+            self.database.insert_work_metric(
+                {
+                    "snapshot_id": snapshot_id,
+                    "account_label": self.account_label,
+                    "video_id": item["video_id"],
+                    **metrics,
+                    "average_watch_duration_seconds": item[
+                        "average_watch_duration_seconds"
+                    ],
+                    "raw_json": json.dumps(
+                        raw_payload, ensure_ascii=False, sort_keys=True
+                    ),
+                }
+            )
+
+        fan_rows = parsed["fan_rows"]
+        if fan_rows:
+            self.database.replace_fan_profiles(snapshot_id, fan_rows)
+
+        self._archive(source, digest)
+        present = [
+            field
+            for field in CORE_WORK_FIELDS
+            if any(work["metrics"].get(field) is not None for work in works)
+        ]
+        missing = [field for field in CORE_WORK_FIELDS if field not in present]
+        coverage = {
+            "present_fields": present,
+            "missing_fields": missing,
+            "coverage_rate": round(len(present) / len(CORE_WORK_FIELDS), 4),
+            "query_keys": parsed["query_keys"],
+            "metric_work_count": metric_work_count,
+            "fan_profile_rows": len(fan_rows),
+        }
+        return ImportSummary(
+            source.name,
+            True,
+            "works",
+            snapshot_id,
+            len(works),
+            0,
+            coverage,
+        )
 
     def _import_works(
         self,

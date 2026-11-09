@@ -99,12 +99,80 @@ class WorkAnalyzer:
             "coverage": self._coverage(),
             "works": self._overview(all_works, recent),
             "topics": topics,
+            "play_sources": self._play_sources(),
             "diagnostics": self._diagnostics(metric_works),
             "skill_feedback": self._skill_feedback(metric_works, topics),
             "fan_profiles": self._fan_profiles(),
             "import_issues": [
                 dict(row) for row in self.database.issues(self.snapshot_id)
             ],
+        }
+
+    def _play_sources(self) -> dict[str, Any]:
+        """Aggregate per-work traffic sources stored in work_metrics.raw_json."""
+
+        weighted: dict[str, float] = defaultdict(float)
+        total_weight = 0.0
+        per_work: list[dict[str, Any]] = []
+        for row in self.rows:
+            try:
+                raw = json.loads(row.get("raw_json") or "{}")
+            except json.JSONDecodeError:
+                continue
+            sources = raw.get("play_source")
+            if not isinstance(sources, list) or not sources:
+                continue
+            play_count = row.get("play_count")
+            weight = float(play_count) if play_count else 0.0
+            total_weight += weight
+            entries: list[dict[str, Any]] = []
+            for source in sources:
+                if not isinstance(source, Mapping):
+                    continue
+                name = source.get("name")
+                ratio = source.get("ratio")
+                if name is None or ratio is None:
+                    continue
+                weighted[str(name)] += float(ratio) * weight
+                entries.append({"name": str(name), "ratio": float(ratio)})
+            per_work.append(
+                {
+                    "video_id": row["video_id"],
+                    "title": row.get("title"),
+                    "publish_time": row.get("publish_time"),
+                    "play_count": play_count,
+                    "small_base": (
+                        play_count is not None
+                        and play_count
+                        < int(self.thresholds["small_base_play_count"])
+                    ),
+                    "sources": entries,
+                }
+            )
+
+        if total_weight <= 0:
+            non_empty = per_work[:]
+            if not non_empty:
+                return {"available": False, "aggregate": [], "works": []}
+            # No play counts: fall back to an unweighted mean across works.
+            totals: dict[str, float] = defaultdict(float)
+            for work in non_empty:
+                for entry in work["sources"]:
+                    totals[entry["name"]] += entry["ratio"]
+            aggregate = [
+                {"name": name, "ratio": round(value / len(non_empty), 6)}
+                for name, value in sorted(totals.items(), key=lambda pair: -pair[1])
+            ]
+            return {"available": True, "aggregate": aggregate, "works": per_work[:20]}
+
+        aggregate = [
+            {"name": name, "ratio": round(value / total_weight, 6)}
+            for name, value in sorted(weighted.items(), key=lambda pair: -pair[1])
+        ]
+        return {
+            "available": True,
+            "aggregate": aggregate,
+            "works": per_work[:20],
         }
 
     def _coverage(self) -> dict[str, Any]:
@@ -288,6 +356,55 @@ class WorkAnalyzer:
                         "status": "初步判断",
                     }
                 )
+
+        sources = self._play_sources()
+        if sources.get("available"):
+            aggregate = {
+                item["name"]: item["ratio"] for item in sources.get("aggregate", [])
+            }
+            recommend = aggregate.get("推荐页")
+            search = aggregate.get("搜索")
+            fan_flow = sum(
+                aggregate.get(name, 0.0)
+                for name in ("个人主页", "关注页", "朋友页", "消息页")
+            )
+            if recommend is not None and recommend < 0.50:
+                conclusions.append(
+                    {
+                        "type": "traffic_recommend_weak",
+                        "conclusion": (
+                            f"推荐页流量占比 {recommend:.1%}，低于 50%，分发规模受限是播放回落的主要解释之一。"
+                        ),
+                        "status": "已证实",
+                    }
+                )
+            if search is not None and search >= 0.20:
+                conclusions.append(
+                    {
+                        "type": "traffic_search_strong",
+                        "conclusion": (
+                            f"搜索流量占比 {search:.1%}，标题与关键词命中有效，选题可继续加重搜索意图。"
+                        ),
+                        "status": "初步判断",
+                    }
+                )
+            if fan_flow >= 0.30:
+                conclusions.append(
+                    {
+                        "type": "traffic_fan_flow",
+                        "conclusion": (
+                            f"主页/关注/朋友等私域入口合计占比 {fan_flow:.1%}，系列内容与主页导流有效，但破圈流量不足。"
+                        ),
+                        "status": "初步判断",
+                    }
+                )
+        else:
+            data_gaps.append(
+                {
+                    "type": "missing_play_source",
+                    "conclusion": "流量来源数据缺失，无法判断分发结构；接入 DouyinDataReview MCP 后可补齐。",
+                }
+            )
 
         conclusions.append(
             {

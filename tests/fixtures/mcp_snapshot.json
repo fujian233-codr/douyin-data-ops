@@ -1,0 +1,131 @@
+{
+  "source": "douyin-review-mcp",
+  "collected_at": "2026-11-09T21:30:00",
+  "queries": {
+    "work_list": [
+      {
+        "status_code": 0,
+        "has_more": false,
+        "max_cursor": "10",
+        "total": 3,
+        "aweme_list": [
+          {
+            "aweme_id": "7459999999999999991",
+            "desc": "F1 为什么禁止地面效应扩散器",
+            "create_time": 1762627200,
+            "status_value": 102,
+            "is_slides": false,
+            "duration": 95000,
+            "review_struct": {"status": 3, "status_desc": "已发布"}
+          },
+          {
+            "aweme_id": "7459999999999999992",
+            "desc": "诺里斯马来西亚夺冠复盘",
+            "create_time": 1762540800,
+            "status_value": 102,
+            "is_slides": false,
+            "duration": 61000,
+            "review_struct": {"status": 3, "status_desc": "已发布"}
+          },
+          {
+            "aweme_id": "7459999999999999993",
+            "desc": "私密草稿测试",
+            "create_time": 1762454400,
+            "status_value": 102,
+            "status": {"private_status": 1, "is_private": true}
+          }
+        ],
+        "items": [
+          {
+            "id": "7459999999999999991",
+            "metrics": {
+              "view_count": 128000,
+              "like_count": 9500,
+              "comment_count": 320,
+              "share_count": 410,
+              "favorite_count": 1200,
+              "subscribe_count": 180,
+              "completion_rate": 0.18,
+              "bounce_rate_2s": 0.35,
+              "cover_click_rate": 0.052
+            }
+          },
+          {
+            "id": "7459999999999999992",
+            "metrics": {
+              "view_count": 22000,
+              "like_count": 1800,
+              "comment_count": 90,
+              "share_count": 130,
+              "favorite_count": 260,
+              "subscribe_count": 33,
+              "completion_rate": 0.24,
+              "bounce_rate_2s": 0.31
+            }
+          },
+          {
+            "id": "7459999999999999993",
+            "metrics": {
+              "view_count": 5,
+              "like_count": 1
+            }
+          }
+        ]
+      }
+    ],
+    "item_play_source": [
+      {
+        "item_id": "7459999999999999991",
+        "response": {
+          "play_source": [
+            {"key": "homepage_hot", "value": 0.45, "app_id": 1128, "history_difference": 0.05},
+            {"key": "search", "value": 0.18, "app_id": 1128, "history_difference": 0.02},
+            {"key": "follow", "value": 0.08, "app_id": 1128, "history_difference": 0},
+            {"key": "self_profile_vv_all", "value": 0.07, "app_id": 1128, "history_difference": 0},
+            {"key": "other_profile_vv_all", "value": 0.02, "app_id": 1128, "history_difference": 0},
+            {"key": "tiny_source", "value": 0.0001, "app_id": 1128, "history_difference": 0},
+            {"key": "external_app", "value": 0.4, "app_id": 1129, "history_difference": 0}
+          ]
+        }
+      },
+      {
+        "item_id": "7459999999999999992",
+        "response": {
+          "play_source": [
+            {"key": "homepage_hot", "value": 0.40, "app_id": 1128, "history_difference": -0.1},
+            {"key": "search", "value": 0.35, "app_id": 1128, "history_difference": 0.1},
+            {"key": "follow", "value": 0.10, "app_id": 1128, "history_difference": 0}
+          ]
+        }
+      }
+    ],
+    "item_trend": [
+      {
+        "item_id": "7459999999999999991",
+        "response": {
+          "data": [{"date": "2026-11-09", "value": 32000}]
+        }
+      }
+    ],
+    "fans_summary": [
+      {
+        "response": {
+          "fans_portrait": {
+            "fans_sex_distribution": {
+              "items": [
+                {"name": "男性", "value": 0.86},
+                {"name": "女性", "value": 0.14}
+              ]
+            },
+            "fans_age_distribution": {
+              "items": [
+                {"name": "18-23岁", "value": 0.31},
+                {"name": "24-30岁", "value": 0.44}
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -146,8 +146,48 @@ class ReportGenerator:
         else:
             lines.append("暂无可分组作品。")
 
+        play_sources = data.get("play_sources") or {}
+        lines.extend(["", "## 五、流量来源结构", ""])
+        if play_sources.get("available"):
+            lines.append("| 来源 | 加权占比 |")
+            lines.append("|---|---:|")
+            for item in play_sources["aggregate"]:
+                lines.append(f"| {item['name']} | {_percent(item['ratio'])} |")
+            lines.extend(["", "### 作品流量来源明细", ""])
+            work_rows = [
+                work
+                for work in play_sources.get("works", [])
+                if not work.get("small_base")
+            ]
+            if work_rows:
+                lines.append("| 发布时间 | 标题 | 播放 | 主要来源 |")
+                lines.append("|---|---|---:|---|")
+                for work in work_rows:
+                    top = work["sources"][:3]
+                    source_text = "、".join(
+                        f"{entry['name']}{float(entry['ratio']):.0%}"
+                        for entry in top
+                    )
+                    lines.append(
+                        "| {publish} | {title} | {play} | {sources} |".format(
+                            publish=work.get("publish_time") or "未知",
+                            title=str(work.get("title") or "无标题")
+                            .replace("|", "/")
+                            .replace("\r", " ")
+                            .replace("\n", " "),
+                            play=_count(work.get("play_count")),
+                            sources=source_text or "—",
+                        )
+                    )
+            else:
+                lines.append("有小基数据限制，暂无可展示的非小基数作品来源明细。")
+        else:
+            lines.append(
+                "流量来源数据缺失；通过 DouyinDataReview MCP 拉取 `item_play_source` 后可补齐。"
+            )
+
         diagnostics = data["diagnostics"]
-        lines.extend(["", "## 五、诊断结论", "", "### 已证实 / 初步判断", ""])
+        lines.extend(["", "## 六、诊断结论", "", "### 已证实 / 初步判断", ""])
         if diagnostics["conclusions"]:
             for item in diagnostics["conclusions"]:
                 lines.append(f"- [{item['status']}] {item['conclusion']}")
@@ -166,14 +206,14 @@ class ReportGenerator:
         else:
             lines.append("- 暂无核心数据缺口。")
 
-        lines.extend(["", "## 六、Skill 与工作流反馈", ""])
+        lines.extend(["", "## 七、Skill 与工作流反馈", ""])
         for item in data["skill_feedback"]:
             lines.append(f"- **{item['target']}**：{item['action']}")
 
         lines.extend(
             [
                 "",
-                "## 七、导入问题",
+                "## 八、导入问题",
                 "",
             ]
         )
