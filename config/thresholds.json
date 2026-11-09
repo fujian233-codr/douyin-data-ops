@@ -1,0 +1,8 @@
+{
+  "small_base_play_count": 500,
+  "five_second_completion_good": 0.5,
+  "five_second_completion_excellent": 0.7,
+  "two_second_bounce_warning": 0.75,
+  "two_second_bounce_critical": 0.85
+}
+

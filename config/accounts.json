@@ -1,0 +1,10 @@
+{
+  "accounts": {
+    "main": {
+      "label": "main",
+      "platform": "douyin",
+      "note": "默认本人主账号"
+    }
+  }
+}
+

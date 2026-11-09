@@ -1,0 +1,344 @@
+"""Deterministic analysis over one stored works snapshot."""
+
+from __future__ import annotations
+
+from collections import defaultdict
+import json
+from pathlib import Path
+from statistics import mean, median
+from typing import Any, Iterable, Mapping, Sequence
+
+from .store import Database
+
+
+CORE_FIELDS = (
+    "play_count",
+    "like_count",
+    "comment_count",
+    "share_count",
+    "collect_count",
+    "five_second_completion_rate",
+    "completion_rate",
+    "two_second_bounce_rate",
+    "cover_click_rate",
+    "average_watch_duration_seconds",
+    "follower_gain",
+)
+
+
+def _values(rows: Sequence[Mapping[str, Any]], field: str) -> list[Any]:
+    return [row[field] for row in rows if row.get(field) is not None]
+
+
+def _number_or_none(value: Any) -> float | int | None:
+    if value is None:
+        return None
+    return float(value)
+
+
+def _average(rows: Sequence[Mapping[str, Any]], field: str) -> float | None:
+    values = _values(rows, field)
+    return round(mean(values), 6) if values else None
+
+
+def _median(rows: Sequence[Mapping[str, Any]], field: str) -> float | None:
+    values = _values(rows, field)
+    return round(median(values), 6) if values else None
+
+
+def _sum(rows: Sequence[Mapping[str, Any]], field: str) -> int | None:
+    values = _values(rows, field)
+    return sum(int(value) for value in values) if values else None
+
+
+class TopicClassifier:
+    def __init__(self, config_path: Path):
+        with config_path.open("r", encoding="utf-8") as handle:
+            config = json.load(handle)
+        self.topics = config.get("topics", [])
+        self.fallback = config.get("fallback_topic", "其他")
+
+    def classify(self, title: str | None) -> str:
+        text = (title or "").lower()
+        for topic in self.topics:
+            keywords = [str(keyword).lower() for keyword in topic.get("keywords", [])]
+            if any(keyword in text for keyword in keywords):
+                return str(topic["name"])
+        return self.fallback
+
+
+class WorkAnalyzer:
+    def __init__(
+        self,
+        database: Database,
+        root: Path,
+        snapshot_id: str,
+    ):
+        self.database = database
+        self.root = root
+        self.snapshot_id = snapshot_id
+        snapshot = database.get_snapshot(snapshot_id)
+        if snapshot is None:
+            raise ValueError(f"snapshot not found: {snapshot_id}")
+        self.snapshot = dict(snapshot)
+        self.rows = [dict(row) for row in database.work_metrics(snapshot_id)]
+        self.classifier = TopicClassifier(root / "config" / "topics.json")
+        with (root / "config" / "thresholds.json").open("r", encoding="utf-8") as handle:
+            self.thresholds = json.load(handle)
+
+    def build(self) -> dict[str, Any]:
+        recent = self._recent_works()
+        topics = self._topics(recent)
+        return {
+            "snapshot": self.snapshot,
+            "account_label": self.snapshot["account_label"],
+            "coverage": self._coverage(),
+            "works": self._overview(recent),
+            "topics": topics,
+            "diagnostics": self._diagnostics(recent),
+            "skill_feedback": self._skill_feedback(recent, topics),
+            "fan_profiles": self._fan_profiles(),
+            "import_issues": [
+                dict(row) for row in self.database.issues(self.snapshot_id)
+            ],
+        }
+
+    def _coverage(self) -> dict[str, Any]:
+        present: list[str] = []
+        missing: list[str] = []
+        for field in CORE_FIELDS:
+            if _values(self.rows, field):
+                present.append(field)
+            else:
+                missing.append(field)
+        return {
+            "present_fields": present,
+            "missing_fields": missing,
+            "missing_core_fields": len(missing),
+            "coverage_rate": round(len(present) / len(CORE_FIELDS), 4),
+        }
+
+    def _recent_works(self) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for row in self.rows[:20]:
+            missing_fields = [
+                field for field in CORE_FIELDS if row.get(field) is None
+            ]
+            play_count = row.get("play_count")
+            result.append(
+                {
+                    "video_id": row["video_id"],
+                    "title": row.get("title"),
+                    "publish_time": row.get("publish_time"),
+                    "topic": self.classifier.classify(row.get("title")),
+                    "play_count": play_count,
+                    "like_count": row.get("like_count"),
+                    "comment_count": row.get("comment_count"),
+                    "share_count": row.get("share_count"),
+                    "collect_count": row.get("collect_count"),
+                    "five_second_completion_rate": row.get(
+                        "five_second_completion_rate"
+                    ),
+                    "completion_rate": row.get("completion_rate"),
+                    "two_second_bounce_rate": row.get("two_second_bounce_rate"),
+                    "cover_click_rate": row.get("cover_click_rate"),
+                    "average_watch_duration_seconds": row.get(
+                        "average_watch_duration_seconds"
+                    ),
+                    "follower_gain": row.get("follower_gain"),
+                    "small_base": (
+                        play_count is not None
+                        and play_count
+                        < int(self.thresholds["small_base_play_count"])
+                    ),
+                    "missing_fields": missing_fields,
+                }
+            )
+        return result
+
+    def _overview(self, recent: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+        rows = list(recent)
+        return {
+            "count": len(rows),
+            "total_play_count": _sum(rows, "play_count"),
+            "average_play_count": _average(rows, "play_count"),
+            "median_play_count": _median(rows, "play_count"),
+            "average_like_count": _average(rows, "like_count"),
+            "average_comment_count": _average(rows, "comment_count"),
+            "average_collect_count": _average(rows, "collect_count"),
+            "average_share_count": _average(rows, "share_count"),
+            "average_five_second_completion_rate": _average(
+                rows, "five_second_completion_rate"
+            ),
+            "average_completion_rate": _average(rows, "completion_rate"),
+            "average_two_second_bounce_rate": _average(
+                rows, "two_second_bounce_rate"
+            ),
+            "recent": list(rows),
+        }
+
+    def _topics(self, rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+        grouped: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+        for row in rows:
+            grouped[str(row["topic"])].append(row)
+
+        result: list[dict[str, Any]] = []
+        for topic, topic_rows in grouped.items():
+            plays = _sum(topic_rows, "play_count")
+            engagement = sum(
+                int(row.get(field) or 0)
+                for row in topic_rows
+                for field in ("like_count", "comment_count", "share_count", "collect_count")
+            )
+            total_plays = plays or 0
+            result.append(
+                {
+                    "topic": topic,
+                    "work_count": len(topic_rows),
+                    "median_play_count": _median(topic_rows, "play_count"),
+                    "median_completion_rate": _median(
+                        topic_rows, "completion_rate"
+                    ),
+                    "interaction_rate": (
+                        round(engagement / total_plays, 6) if total_plays else None
+                    ),
+                    "total_follower_gain": _sum(topic_rows, "follower_gain"),
+                }
+            )
+        return sorted(result, key=lambda item: (-int(item["work_count"]), item["topic"]))
+
+    def _diagnostics(self, rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+        conclusions: list[dict[str, Any]] = []
+        observations: list[dict[str, Any]] = []
+        data_gaps: list[dict[str, Any]] = []
+
+        missing_five = self._coverage()["missing_fields"]
+        if "five_second_completion_rate" in missing_five:
+            data_gaps.append(
+                {
+                    "type": "missing_five_second_completion",
+                    "conclusion": "5秒完播率缺失，不能判断开头留存效率；建议用 douyin-mcp 补齐。",
+                }
+            )
+
+        for row in rows:
+            if row["small_base"]:
+                observations.append(
+                    {
+                        "type": "small_base",
+                        "video_id": row["video_id"],
+                        "conclusion": (
+                            f"播放量 {row['play_count']} 低于 "
+                            f"{self.thresholds['small_base_play_count']}，只作观察，不做深度归因。"
+                        ),
+                    }
+                )
+                continue
+
+            bounce = row.get("two_second_bounce_rate")
+            if bounce is not None and bounce >= float(
+                self.thresholds["two_second_bounce_warning"]
+            ):
+                conclusions.append(
+                    {
+                        "type": "opening_hook",
+                        "video_id": row["video_id"],
+                        "conclusion": "2秒跳出率达到预警线，优先检查开头钩子。",
+                        "status": "初步判断",
+                    }
+                )
+
+            five = row.get("five_second_completion_rate")
+            completion = row.get("completion_rate")
+            if (
+                five is not None
+                and completion is not None
+                and five >= float(self.thresholds["five_second_completion_good"])
+                and completion < 0.30
+            ):
+                conclusions.append(
+                    {
+                        "type": "middle_structure",
+                        "video_id": row["video_id"],
+                        "conclusion": "5秒留存达标但整体完播偏低，优先检查中段结构与节奏。",
+                        "status": "初步判断",
+                    }
+                )
+
+            play = row.get("play_count")
+            if completion is not None and completion >= 0.30 and play is not None and play < 2000:
+                conclusions.append(
+                    {
+                        "type": "distribution_or_packaging",
+                        "video_id": row["video_id"],
+                        "conclusion": "完播尚可但播放量偏低，检查选题、标题、封面和分发场景。",
+                        "status": "初步判断",
+                    }
+                )
+
+        conclusions.append(
+            {
+                "type": "review_rubric",
+                "conclusion": "后续复盘固定观察：2秒跳出/开头钩子、5秒完播/信息密度、整体完播/中段结构、互动/结尾引导。",
+                "status": "方法提醒",
+            }
+        )
+        return {
+            "conclusions": conclusions,
+            "observations": observations,
+            "data_gaps": data_gaps,
+        }
+
+    def _skill_feedback(
+        self,
+        rows: Sequence[Mapping[str, Any]],
+        topics: Sequence[Mapping[str, Any]],
+    ) -> list[dict[str, str]]:
+        feedback = [
+            {
+                "target": "douyin-operations",
+                "action": "补充本次账号基准：播放中位数、完播中位数、2秒跳出中位数和小基数处理规则。",
+            },
+            {
+                "target": "narrative-skill",
+                "action": "把开头钩子拆成可 A/B 的两版：具体场景冲突版 vs 结论前置版。",
+            },
+        ]
+        ranked = sorted(
+            [item for item in topics if item.get("median_play_count") is not None],
+            key=lambda item: float(item["median_play_count"]),
+            reverse=True,
+        )
+        if ranked:
+            winner = ranked[0]
+            feedback.append(
+                {
+                    "target": "topic-radar",
+                    "action": (
+                        f"提高「{winner['topic']}」的选题权重；其播放中位数为 "
+                        f"{winner['median_play_count']}。"
+                    ),
+                }
+            )
+        if any(row["small_base"] for row in rows):
+            feedback.append(
+                {
+                    "target": "douyin-operations",
+                    "action": "小基数作品不要归因，优先重做下一条或换钩子测试。",
+                }
+            )
+        return feedback
+
+    def _fan_profiles(self) -> dict[str, Any]:
+        latest = self.database.latest_snapshot(
+            self.snapshot["account_label"], "fan_profiles"
+        )
+        if latest is None:
+            return {"available": False, "rows": []}
+        return {
+            "available": True,
+            "snapshot_id": latest["snapshot_id"],
+            "collected_at": latest["collected_at"],
+            "rows": [dict(row) for row in self.database.fan_profiles(latest["snapshot_id"])],
+        }
+

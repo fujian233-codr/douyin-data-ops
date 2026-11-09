@@ -1,0 +1,27 @@
+{
+  "video_id": ["video_id", "作品id", "作品ID", "id"],
+  "video_url": ["video_url", "作品链接", "链接", "url"],
+  "title": ["title", "作品标题", "描述", "标题"],
+  "publish_time": ["publish_time", "发布时间", "上传时间"],
+  "duration_text": ["duration_text", "时长", "视频时长"],
+  "status": ["status", "状态", "审核状态"],
+  "content_kind": ["content_kind", "体裁", "作品类型", "类型"],
+  "play_count": ["play_count", "播放量", "播放", "播放次数"],
+  "exposure_count": ["exposure_count", "曝光量", "曝光次数"],
+  "like_count": ["like_count", "点赞量", "点赞", "点赞数"],
+  "comment_count": ["comment_count", "评论量", "评论", "评论数"],
+  "share_count": ["share_count", "分享量", "分享", "分享数"],
+  "collect_count": ["collect_count", "收藏量", "收藏", "收藏数"],
+  "follower_gain": ["follower_gain", "粉丝增量", "吸粉量", "subscribe_count"],
+  "homepage_visits": ["homepage_visits", "主页访问量", "主页访问"],
+  "five_second_completion_rate": ["five_second_completion_rate", "5s完播率", "5秒完播率", "5 秒完播率"],
+  "completion_rate": ["completion_rate", "完播率", "整体完播率"],
+  "two_second_bounce_rate": ["two_second_bounce_rate", "2s跳出率", "2秒跳出率", "2 秒跳出率", "划走率"],
+  "cover_click_rate": ["cover_click_rate", "封面点击率", "点击率"],
+  "average_watch_duration_seconds": ["average_watch_duration_seconds", "avg_view_second", "平均播放时长", "平均观看时长"],
+  "dimension": ["dimension", "维度", "指标"],
+  "segment": ["segment", "人群", "分类"],
+  "value": ["value", "数值", "数量"],
+  "ratio": ["ratio", "占比", "比例"]
+}
+
