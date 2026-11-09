@@ -11,7 +11,10 @@ from typing import Any, Iterable, Mapping
 
 _EMPTY_VALUES = {"", "-", "--", "none", "null", "nan", "未知"}
 _NUMBER_WITH_UNIT = re.compile(r"^([+-]?\d+(?:\.\d+)?)\s*(万|亿|w|W)?$")
-_VIDEO_URL_ID = re.compile(r"(?:douyin\.com/)?video/(\d{6,})", re.IGNORECASE)
+_VIDEO_URL_ID = re.compile(
+    r"(?:douyin\.com/)?(?:video|note)/(\d{6,})",
+    re.IGNORECASE,
+)
 
 
 def normalize_header(value: Any) -> str:

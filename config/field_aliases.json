@@ -1,9 +1,9 @@
 {
   "video_id": ["video_id", "作品id", "作品ID", "id"],
   "video_url": ["video_url", "作品链接", "链接", "url"],
-  "title": ["title", "作品标题", "描述", "标题"],
+  "title": ["title", "作品标题", "作品描述", "描述", "标题"],
   "publish_time": ["publish_time", "发布时间", "上传时间"],
-  "duration_text": ["duration_text", "时长", "视频时长"],
+  "duration_text": ["duration_text", "时长", "视频时长", "时长/图片数"],
   "status": ["status", "状态", "审核状态"],
   "content_kind": ["content_kind", "体裁", "作品类型", "类型"],
   "play_count": ["play_count", "播放量", "播放", "播放次数"],
@@ -20,7 +20,7 @@
   "cover_click_rate": ["cover_click_rate", "封面点击率", "点击率"],
   "average_watch_duration_seconds": ["average_watch_duration_seconds", "avg_view_second", "平均播放时长", "平均观看时长"],
   "dimension": ["dimension", "维度", "指标"],
-  "segment": ["segment", "人群", "分类"],
+  "segment": ["segment", "人群", "项目", "分类"],
   "value": ["value", "数值", "数量"],
   "ratio": ["ratio", "占比", "比例"]
 }

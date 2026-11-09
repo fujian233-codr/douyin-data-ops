@@ -50,6 +50,7 @@ WORK_INDICATOR_FIELDS = (
     "collect_count",
     "completion_rate",
 )
+FAN_KEY_FIELDS = ("dimension", "segment", "value")
 FAN_FIELDS = ("dimension", "segment", "value", "ratio")
 CORE_WORK_FIELDS = COUNT_FIELDS + RATE_FIELDS + ("average_watch_duration_seconds",)
 
@@ -153,7 +154,7 @@ class DataImporter:
 
     @staticmethod
     def _looks_like_fan_profiles(canonical_headers: Mapping[str, str]) -> bool:
-        return all(field in canonical_headers for field in FAN_FIELDS)
+        return all(field in canonical_headers for field in FAN_KEY_FIELDS)
 
     @staticmethod
     def _value(row: Mapping[str, Any], canonical_headers: Mapping[str, str], field: str) -> Any:
@@ -375,28 +376,55 @@ class DataImporter:
             raw_ratio = self._value(row, canonical_headers, "ratio")
             value = None
             ratio = None
-            try:
-                value = None if is_empty(raw_value) else parse_count(raw_value)
-            except ValueError:
-                issues.append(
-                    {
-                        "row_number": row_number,
-                        "field_name": "value",
-                        "issue_type": "invalid_count",
-                        "raw_value": raw_value,
-                    }
-                )
-            try:
-                ratio = None if is_empty(raw_ratio) else parse_rate(raw_ratio)
-            except ValueError:
-                issues.append(
-                    {
-                        "row_number": row_number,
-                        "field_name": "ratio",
-                        "issue_type": "invalid_rate",
-                        "raw_value": raw_ratio,
-                    }
-                )
+            value_text = str(raw_value or "").strip()
+            if not is_empty(raw_value) and value_text.endswith(("%", "％")):
+                try:
+                    ratio = parse_rate(value_text)
+                except ValueError:
+                    issues.append(
+                        {
+                            "row_number": row_number,
+                            "field_name": "value",
+                            "issue_type": "invalid_rate",
+                            "raw_value": raw_value,
+                        }
+                    )
+            elif not is_empty(raw_value) and value_text.startswith("热度"):
+                try:
+                    value = parse_count(value_text[2:])
+                except ValueError:
+                    issues.append(
+                        {
+                            "row_number": row_number,
+                            "field_name": "value",
+                            "issue_type": "invalid_count",
+                            "raw_value": raw_value,
+                        }
+                    )
+            else:
+                try:
+                    value = None if is_empty(raw_value) else parse_count(raw_value)
+                except ValueError:
+                    issues.append(
+                        {
+                            "row_number": row_number,
+                            "field_name": "value",
+                            "issue_type": "invalid_count",
+                            "raw_value": raw_value,
+                        }
+                    )
+            if ratio is None:
+                try:
+                    ratio = None if is_empty(raw_ratio) else parse_rate(raw_ratio)
+                except ValueError:
+                    issues.append(
+                        {
+                            "row_number": row_number,
+                            "field_name": "ratio",
+                            "issue_type": "invalid_rate",
+                            "raw_value": raw_ratio,
+                        }
+                    )
             parsed_rows.append(
                 {
                     "dimension": str(dimension).strip(),
