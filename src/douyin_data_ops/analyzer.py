@@ -87,16 +87,20 @@ class WorkAnalyzer:
             self.thresholds = json.load(handle)
 
     def build(self) -> dict[str, Any]:
+        all_works = self._work_views()
+        metric_works = [
+            row for row in all_works if row.get("play_count") is not None
+        ]
         recent = self._recent_works()
-        topics = self._topics(recent)
+        topics = self._topics(metric_works)
         return {
             "snapshot": self.snapshot,
             "account_label": self.snapshot["account_label"],
             "coverage": self._coverage(),
-            "works": self._overview(recent),
+            "works": self._overview(all_works, recent),
             "topics": topics,
-            "diagnostics": self._diagnostics(recent),
-            "skill_feedback": self._skill_feedback(recent, topics),
+            "diagnostics": self._diagnostics(metric_works),
+            "skill_feedback": self._skill_feedback(metric_works, topics),
             "fan_profiles": self._fan_profiles(),
             "import_issues": [
                 dict(row) for row in self.database.issues(self.snapshot_id)
@@ -118,9 +122,10 @@ class WorkAnalyzer:
             "coverage_rate": round(len(present) / len(CORE_FIELDS), 4),
         }
 
-    def _recent_works(self) -> list[dict[str, Any]]:
+    def _work_views(self, rows: Sequence[Mapping[str, Any]] | None = None) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = []
-        for row in self.rows[:20]:
+        source = self.rows if rows is None else rows
+        for row in source:
             missing_fields = [
                 field for field in CORE_FIELDS if row.get(field) is None
             ]
@@ -156,9 +161,17 @@ class WorkAnalyzer:
             )
         return result
 
-    def _overview(self, recent: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-        rows = list(recent)
+    def _recent_works(self) -> list[dict[str, Any]]:
+        return self._work_views(self.rows[:20])
+
+    def _overview(
+        self,
+        all_works: Sequence[Mapping[str, Any]],
+        recent: Sequence[Mapping[str, Any]],
+    ) -> dict[str, Any]:
+        rows = [row for row in all_works if row.get("play_count") is not None]
         return {
+            "total_work_count": len(all_works),
             "count": len(rows),
             "total_play_count": _sum(rows, "play_count"),
             "average_play_count": _average(rows, "play_count"),
@@ -174,7 +187,7 @@ class WorkAnalyzer:
             "average_two_second_bounce_rate": _average(
                 rows, "two_second_bounce_rate"
             ),
-            "recent": list(rows),
+            "recent": list(recent),
         }
 
     def _topics(self, rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:

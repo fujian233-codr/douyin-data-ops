@@ -88,7 +88,8 @@ class ReportGenerator:
                 "",
                 "## 二、账号总览",
                 "",
-                f"- 作品数：{works['count']}",
+                f"- 作品总数：{works['total_work_count']}",
+                f"- 有播放指标作品数：{works['count']}",
                 f"- 总播放：{_count(works['total_play_count'])}",
                 f"- 平均播放：{_count(works['average_play_count'])}",
                 f"- 播放中位数：{_count(works['median_play_count'])}",
@@ -115,7 +116,10 @@ class ReportGenerator:
             lines.append(
                 "| {publish} | {title} | {topic} | {play} | {completion} | {bounce} | {follow} | {flags} |".format(
                     publish=row["publish_time"] or "未知",
-                    title=str(row["title"] or "无标题").replace("|", "/"),
+                    title=str(row["title"] or "无标题")
+                    .replace("|", "/")
+                    .replace("\r", " ")
+                    .replace("\n", " "),
                     topic=row["topic"],
                     play=_count(row["play_count"]),
                     completion=_percent(row["completion_rate"]),
