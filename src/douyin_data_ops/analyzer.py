@@ -100,12 +100,108 @@ class WorkAnalyzer:
             "works": self._overview(all_works, recent),
             "topics": topics,
             "play_sources": self._play_sources(),
+            "daily_trends": self._daily_trends(),
+            "comparison": self._comparison(),
             "diagnostics": self._diagnostics(metric_works),
             "skill_feedback": self._skill_feedback(metric_works, topics),
             "fan_profiles": self._fan_profiles(),
             "import_issues": [
                 dict(row) for row in self.database.issues(self.snapshot_id)
             ],
+        }
+
+    def _daily_trends(self) -> dict[str, Any]:
+        """Account-level daily metrics from the newest XLSX imports."""
+
+        rows = [dict(row) for row in self.database.daily_metrics_rows(self.snapshot["account_label"])]
+        if not rows:
+            return {"available": False, "recent": [], "averages": {}}
+        recent = rows[-14:]
+        last7 = rows[-7:]
+        averages: dict[str, Any] = {}
+        for field in (
+            "five_second_completion_rate",
+            "two_second_bounce_rate",
+            "cover_click_rate",
+            "average_watch_duration_seconds",
+        ):
+            values = [row[field] for row in last7 if row.get(field) is not None]
+            averages[field] = round(mean(values), 6) if values else None
+        plays = [row["play_count"] for row in last7 if row.get("play_count") is not None]
+        averages["play_count"] = round(mean(plays), 2) if plays else None
+        gains = [row["follower_net"] for row in last7 if row.get("follower_net") is not None]
+        averages["follower_net"] = round(mean(gains), 2) if gains else None
+        return {
+            "available": True,
+            "date_range": [rows[0]["stat_date"], rows[-1]["stat_date"]],
+            "row_count": len(rows),
+            "averages": averages,
+            "recent": recent,
+        }
+
+    def _comparison(self) -> dict[str, Any]:
+        """Current works snapshot vs the previous one, aligned by video_id."""
+
+        previous = self.database.previous_snapshot(
+            self.snapshot["account_label"], self.snapshot["snapshot_id"], "works"
+        )
+        if previous is None:
+            return {"available": False, "reason": "single_snapshot"}
+
+        previous_rows = {
+            row["video_id"]: row
+            for row in self.database.work_metrics(previous["snapshot_id"])
+            if row["play_count"] is not None
+        }
+        deltas: list[dict[str, Any]] = []
+        new_works: list[dict[str, Any]] = []
+        for row in self.rows:
+            play = row.get("play_count")
+            if play is None:
+                continue
+            before = previous_rows.get(row["video_id"])
+            if before is None:
+                if not (
+                    play < int(self.thresholds["small_base_play_count"])
+                ):
+                    new_works.append(
+                        {
+                            "video_id": row["video_id"],
+                            "title": row.get("title"),
+                            "play_count": play,
+                        }
+                    )
+                continue
+            delta = play - int(before["play_count"])
+            if delta == 0:
+                continue
+            deltas.append(
+                {
+                    "video_id": row["video_id"],
+                    "title": row.get("title"),
+                    "previous_play_count": int(before["play_count"]),
+                    "play_count": play,
+                    "delta": delta,
+                }
+            )
+
+        current_plays = [row["play_count"] for row in self.rows if row.get("play_count") is not None]
+        previous_plays = [int(row["play_count"]) for row in previous_rows.values()]
+        avg_delta = None
+        if current_plays and previous_plays:
+            avg_delta = round(mean(current_plays) - mean(previous_plays), 2)
+        movers = sorted(deltas, key=lambda item: -item["delta"])
+        return {
+            "available": True,
+            "previous_snapshot_id": previous["snapshot_id"],
+            "previous_collected_at": previous["collected_at"],
+            "compared_work_count": len(deltas),
+            "average_play_delta": avg_delta,
+            "risers": movers[:5],
+            "fallers": list(reversed(movers[-5:])),
+            "new_works": sorted(
+                new_works, key=lambda item: -int(item["play_count"])
+            )[:5],
         }
 
     def _play_sources(self) -> dict[str, Any]:
@@ -293,12 +389,21 @@ class WorkAnalyzer:
         observations: list[dict[str, Any]] = []
         data_gaps: list[dict[str, Any]] = []
 
-        missing_five = self._coverage()["missing_fields"]
-        if "five_second_completion_rate" in missing_five:
+        daily = self._daily_trends()
+        daily_five = daily.get("averages", {}).get("five_second_completion_rate")
+        if daily_five is None:
             data_gaps.append(
                 {
                     "type": "missing_five_second_completion",
-                    "conclusion": "5秒完播率缺失，不能判断开头留存效率；建议用 douyin-mcp 补齐。",
+                    "conclusion": "账号级5秒完播率缺失，不能判断开头留存趋势；导入「数据表现_短视频全量指标」XLSX 可补齐。",
+                }
+            )
+        elif daily_five < float(self.thresholds["five_second_completion_good"]):
+            conclusions.append(
+                {
+                    "type": "five_second_completion_low",
+                    "conclusion": f"近7天账号级5秒完播率均值 {daily_five:.1%}，低于良好线，优先检查开头钩子与信息密度。",
+                    "status": "初步判断",
                 }
             )
 

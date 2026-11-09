@@ -81,7 +81,7 @@ class ReportGenerator:
             f"- 缺失字段：{', '.join(coverage['missing_fields']) or '无'}",
         ]
         if "five_second_completion_rate" in coverage["missing_fields"]:
-            lines.append("- ⚠️ 5秒完播率缺失：开头留存判断暂不下结论。")
+            lines.append("- ⚠️ 作品级5秒完播率缺失：单条开头留存判断暂不下结论（账号级见「每日趋势」）。")
 
         lines.extend(
             [
@@ -101,7 +101,53 @@ class ReportGenerator:
                 f"- 平均2秒跳出率：{_percent(works['average_two_second_bounce_rate'])}",
                 f"- 平均5秒完播率：{_percent(works['average_five_second_completion_rate'])}",
                 "",
-                "## 三、最新作品表现",
+                "## 三、每日趋势（账号级）",
+                "",
+            ]
+        )
+        daily = data.get("daily_trends") or {}
+        if daily.get("available"):
+            averages = daily["averages"]
+            duration_avg = averages.get("average_watch_duration_seconds")
+            fans_avg = averages.get("follower_net")
+            lines.extend(
+                [
+                    f"- 覆盖区间：{daily['date_range'][0]} ~ {daily['date_range'][1]}（{daily['row_count']} 天）",
+                    f"- 近7天平均播放：{_count(averages.get('play_count'))}",
+                    f"- 近7天5秒完播率均值：{_percent(averages.get('five_second_completion_rate'))}",
+                    f"- 近7天2秒跳出率均值：{_percent(averages.get('two_second_bounce_rate'))}",
+                    f"- 近7天平均播放时长：{f'{duration_avg:.2f}s' if duration_avg is not None else '缺失'}",
+                    f"- 近7天日均粉丝净增：{f'{fans_avg:+.1f}' if fans_avg is not None else '缺失'}",
+                    "",
+                    "| 日期 | 播放 | 5秒完播 | 2秒跳出 | 平均时长 | 粉丝净增 |",
+                    "|---|---:|---:|---:|---:|---:|",
+                ]
+            )
+            for row in daily["recent"]:
+                duration = row.get("average_watch_duration_seconds")
+                lines.append(
+                    "| {date} | {play} | {five} | {bounce} | {duration} | {fans} |".format(
+                        date=row["stat_date"],
+                        play=_count(row.get("play_count")),
+                        five=_percent(row.get("five_second_completion_rate")),
+                        bounce=_percent(row.get("two_second_bounce_rate")),
+                        duration=f"{duration:.2f}s" if duration is not None else "缺失",
+                        fans=(
+                            f"{row['follower_net']:+,}"
+                            if row.get("follower_net") is not None
+                            else "缺失"
+                        ),
+                    )
+                )
+        else:
+            lines.append(
+                "每日账号级数据缺失；把「数据表现_短视频全量指标 / 粉丝全量指标」XLSX 放入 `data/inbox/` 后重跑导入即可补齐 5 秒完播率等字段。"
+            )
+
+        lines.extend(
+            [
+                "",
+                "## 四、最新作品表现",
                 "",
                 "| 发布时间 | 标题 | 题材 | 播放 | 完播 | 2秒跳出 | 涨粉 | 标记 |",
                 "|---|---|---:|---:|---:|---:|---:|---|",
@@ -129,7 +175,7 @@ class ReportGenerator:
                 )
             )
 
-        lines.extend(["", "## 四、题材模式", ""])
+        lines.extend(["", "## 五、题材模式", ""])
         if data["topics"]:
             lines.append(
                 "| 题材 | 作品数 | 播放中位数 | 完播中位数 | 互动率 | 涨粉 |"
@@ -146,8 +192,35 @@ class ReportGenerator:
         else:
             lines.append("暂无可分组作品。")
 
+        comparison = data.get("comparison") or {}
+        lines.extend(["", "## 六、环比（vs 上一快照）", ""])
+        if comparison.get("available"):
+            delta = comparison.get("average_play_delta")
+            if delta is None:
+                delta_text = "缺失"
+            elif delta == 0:
+                delta_text = "持平"
+            else:
+                delta_text = f"{delta:+,.0f}"
+            lines.extend(
+                [
+                    f"- 对比快照：{comparison['previous_snapshot_id']}（采集于 {comparison['previous_collected_at']}）",
+                    f"- 有指标作品平均播放变化：{delta_text}",
+                    f"- 涨幅前五：{self._movers_text(comparison.get('risers'))}",
+                    f"- 跌幅前五：{self._movers_text(comparison.get('fallers'))}",
+                ]
+            )
+            if comparison.get("new_works"):
+                titles = "、".join(
+                    f"《{work['title'] or work['video_id']}》（{work['play_count']:,}播放）"
+                    for work in comparison["new_works"]
+                )
+                lines.append(f"- 新增非小基数作品：{titles}")
+        else:
+            lines.append("暂无可对比的历史快照；下一次拉数后自动生成环比。")
+
         play_sources = data.get("play_sources") or {}
-        lines.extend(["", "## 五、流量来源结构", ""])
+        lines.extend(["", "## 七、流量来源结构", ""])
         if play_sources.get("available"):
             lines.append("| 来源 | 加权占比 |")
             lines.append("|---|---:|")
@@ -187,7 +260,7 @@ class ReportGenerator:
             )
 
         diagnostics = data["diagnostics"]
-        lines.extend(["", "## 六、诊断结论", "", "### 已证实 / 初步判断", ""])
+        lines.extend(["", "## 八、诊断结论", "", "### 已证实 / 初步判断", ""])
         if diagnostics["conclusions"]:
             for item in diagnostics["conclusions"]:
                 lines.append(f"- [{item['status']}] {item['conclusion']}")
@@ -206,14 +279,14 @@ class ReportGenerator:
         else:
             lines.append("- 暂无核心数据缺口。")
 
-        lines.extend(["", "## 七、Skill 与工作流反馈", ""])
+        lines.extend(["", "## 九、Skill 与工作流反馈", ""])
         for item in data["skill_feedback"]:
             lines.append(f"- **{item['target']}**：{item['action']}")
 
         lines.extend(
             [
                 "",
-                "## 八、导入问题",
+                "## 十、导入问题",
                 "",
             ]
         )
@@ -227,4 +300,13 @@ class ReportGenerator:
             lines.append("- 无。")
         lines.append("")
         return "\n".join(lines)
+
+    @staticmethod
+    def _movers_text(movers: list[dict[str, Any]] | None) -> str:
+        if not movers:
+            return "无"
+        return "、".join(
+            f"《{item['title'] or item['video_id']}》{item['delta']:+,}"
+            for item in movers
+        )
 

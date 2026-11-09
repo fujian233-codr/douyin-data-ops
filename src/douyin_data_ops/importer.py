@@ -28,6 +28,12 @@ from .mcp import (
     collected_at_from_snapshot,
     is_mcp_snapshot,
 )
+from .xlsx import (
+    FAN_DAILY_FIELDS,
+    VIDEO_DAILY_FIELDS,
+    parse_daily_rows,
+    read_sheet_rows,
+)
 from .store import Database, utc_now
 
 
@@ -125,7 +131,7 @@ class DataImporter:
             candidate
             for candidate in path.iterdir()
             if candidate.is_file()
-            and candidate.suffix.lower() in {".csv", ".json"}
+            and candidate.suffix.lower() in {".csv", ".json", ".xlsx"}
         )
         return [self.import_file(candidate) for candidate in files]
 
@@ -135,6 +141,8 @@ class DataImporter:
             return ImportSummary(source.name, False, skip_reason="not_csv")
         if source.suffix.lower() == ".json":
             return self._import_mcp_snapshot(source)
+        if source.suffix.lower() == ".xlsx":
+            return self._import_daily_metrics(source)
         if source.suffix.lower() != ".csv":
             return ImportSummary(source.name, False, skip_reason="not_csv")
 
@@ -283,6 +291,61 @@ class DataImporter:
             snapshot_id,
             len(works),
             0,
+            coverage,
+        )
+
+    def _import_daily_metrics(self, source: Path) -> ImportSummary:
+        digest = sha256_file(source)
+        if self.database.snapshot_exists(digest):
+            return ImportSummary(source.name, False, skip_reason="duplicate_sha256")
+
+        try:
+            rows = read_sheet_rows(source)
+        except ValueError:
+            return ImportSummary(source.name, False, skip_reason="invalid_xlsx")
+        kind, parsed_rows, issues = parse_daily_rows(rows)
+        if kind not in {"video", "fan"}:
+            return ImportSummary(source.name, False, skip_reason="unrecognized_xlsx")
+        if not parsed_rows:
+            return ImportSummary(source.name, False, skip_reason="no_valid_daily_rows")
+
+        fields = (
+            list(VIDEO_DAILY_FIELDS)
+            if kind == "video"
+            else list(FAN_DAILY_FIELDS)
+        )
+        present = [
+            field
+            for field in fields
+            if any(row.get(field) is not None for row in parsed_rows)
+        ]
+        missing = [field for field in fields if field not in present]
+        coverage = {
+            "present_fields": present,
+            "missing_fields": missing,
+            "coverage_rate": round(len(present) / len(fields), 4),
+            "daily_kind": kind,
+        }
+
+        snapshot_id = self.database.create_snapshot(
+            account_label=self.account_label,
+            source_tool=SOURCE_TOOL,
+            collected_at=collected_time(source),
+            source_file=source.name,
+            sha256=digest,
+            kind="daily_metrics",
+        )
+        inserted = self.database.replace_daily_metrics(snapshot_id, parsed_rows)
+        for issue in issues:
+            self.database.record_issue(snapshot_id=snapshot_id, **issue)
+        self._archive(source, digest)
+        return ImportSummary(
+            source.name,
+            True,
+            "daily_metrics",
+            snapshot_id,
+            inserted,
+            len(issues),
             coverage,
         )
 
