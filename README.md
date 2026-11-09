@@ -6,6 +6,7 @@
 
 - 原始 CSV 按 SHA-256 去重后归档，重复导入不产生新快照。
 - MCP 快照（JSON）与 CSV 共用同一套去重、快照与报告机制。
+- 每日账号级 XLSX（5 秒完播率、曝光、平均播放时长、粉丝净增等）独立入库，是账号级指标的唯一来源。
 - 标准指标与原始字段分层保存，缺失值保持 `NULL`，不用 0 猜测。
 - 报告同时输出 Markdown 和 JSON，供人和 AI 复盘使用。
 
@@ -13,12 +14,12 @@
 
 DouyinDataReview v1.43.0 自带官方 MCP（仅本机回环 + 令牌认证，创作者中心接口为只读白名单）。接入 Codex 后可由 AI 直接调用 `creator_read` 拉数，补齐 CSV 拿不到的流量来源、逐日趋势等字段。
 
-一次性配置（`C:\Users\符健\.codex\config.toml`）：
+一次性配置（`<用户目录>\.codex\config.toml`，路径按本机安装位置调整）：
 
 ```toml
 [mcp_servers.douyin-review]
 command = "node"
-args = ["C:\\Users\\符健\\AppData\\Local\\Programs\\DouyinDataReview\\resources\\app.asar.unpacked\\collector\\mcpStdio.mjs"]
+args = ["<DouyinDataReview 安装目录>\\resources\\app.asar.unpacked\\collector\\mcpStdio.mjs"]
 ```
 
 配置后重启 Codex 会话。拉数流程：
@@ -30,6 +31,15 @@ args = ["C:\\Users\\符健\\AppData\\Local\\Programs\\DouyinDataReview\\resource
 
 安全边界：只允许 `creator_read` 只读工具；应用由用户本人打开登录；AI 不代启动、不读 Cookie、不复制令牌文件；`login_required` 时提示用户在应用内重新登录。
 
+## 数据获取（补充）：每日账号级 XLSX
+
+5 秒完播率、平均播放时长、封面点击率、粉丝净增/脱粉这些**账号级每日指标**只在创作者中心「数据中心 → 数据表现」的导出里：
+
+1. 导出「短视频全量指标」XLSX（播放/互动/5s完播/2s跳出/封面点击/平均播放时长）。
+2. 导出「粉丝全量指标」XLSX（总粉丝/净增/吸粉/脱粉/回访）。
+3. 文件放入 `data/inbox/`，命名建议 `daily-video-YYYYMMDD-HHMM.xlsx`、`daily-fans-YYYYMMDD-HHMM.xlsx`。
+4. 跑下方导入命令即可，报告会自动出现「每日趋势」小节。
+
 ## 数据获取（兜底）：CSV 手动导出
 
 1. 从 [DouyinDataReview Releases](https://github.com/ZhangYukwiver/DouyinDataReview/releases/latest) 下载 Windows 安装包，建议 v1.43.0 或更新版本。
@@ -38,7 +48,7 @@ args = ["C:\\Users\\符健\\AppData\\Local\\Programs\\DouyinDataReview\\resource
 4. 将 CSV 放入：
 
 ```text
-C:\Users\符健\Desktop\workflow\douyin-data-ops\data\inbox\
+<仓库根>\data\inbox\
 ```
 
 推荐文件名：
@@ -56,7 +66,7 @@ fans-YYYYMMDD-HHMM.csv
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $env:PYTHONIOENCODING = "utf-8"
-Set-Location -LiteralPath "C:\Users\符健\Desktop\workflow\douyin-data-ops"
+Set-Location -LiteralPath "<仓库根>"
 py -3 scripts\import_data.py --inbox data\inbox --account main
 ```
 
@@ -92,7 +102,7 @@ reports\snapshot-<snapshot_id>.md
 reports\snapshot-<snapshot_id>.json
 ```
 
-报告包含数据覆盖、账号总览、最新作品、题材模式、流量来源结构（MCP 数据才有）、诊断结论、skill 反馈和导入问题。播放低于 500 的作品会标记为「小基数」，只观察，不做深度归因。
+报告包含数据覆盖、账号总览、每日趋势（XLSX 数据）、最新作品、题材模式、环比（vs 上一快照）、流量来源结构（MCP 数据才有）、诊断结论、skill 反馈和导入问题。播放低于 500 的作品会标记为「小基数」，只观察，不做深度归因。
 
 ## 常见缺失字段
 
@@ -111,6 +121,10 @@ reports\snapshot-<snapshot_id>.json
 - MCP `work_list` 与最近一次 CSV 快照对比：`video_id` 匹配率 100%，播放量误差为 0；
 - `item_play_source` 能产出作品级流量来源，账号级加权占比可复算；
 - 单条 `user_info` 冒烟查询返回 `ok: true`。
+
+## 分发给朋友
+
+把仓库（或 ZIP 包）发给对方，对方打开根目录的 **`DEPLOY-PROMPT.md`**，把里面的部署提示词整段复制给自己的 AI，AI 会自动完成环境检查、测试、路径探测、MCP 配置和 skill 安装；只剩装 Node（如缺）、安装并登录 DouyinDataReview、重启会话三个人工动作。项目是 MIT License，可自由分享。
 
 ## 测试
 
