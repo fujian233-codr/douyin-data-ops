@@ -1,6 +1,6 @@
 # 抖音创作者数据采集与复盘流水线
 
-本项目把本人抖音创作者中心数据（首选 DouyinDataReview 内置 MCP 自动拉取，CSV 手动导出作兜底）转换成可追溯的 SQLite 快照，并生成账号、作品、题材、流量来源与诊断报告。只使用 Python 标准库，不接触 Cookie、登录态或第三方云端服务。
+本项目把本人抖音创作者中心数据转换成可追溯的 SQLite 快照，并生成账号、作品、题材、流量来源与诊断报告。三档数据入口：**douyin-direct 独立采集器（首选，自带扫码登录）→ DouyinDataReview 内置 MCP（备用）→ CSV/XLSX 手动导出（兜底）**。导入与分析层零第三方依赖；独立采集器的登录环节可选安装 Playwright。
 
 核心设计：
 
@@ -10,7 +10,18 @@
 - 标准指标与原始字段分层保存，缺失值保持 `NULL`，不用 0 猜测。
 - 报告同时输出 Markdown 和 JSON，供人和 AI 复盘使用。
 
-## 数据获取（首选）：DouyinDataReview 内置 MCP
+## 数据获取（首选）：douyin-direct 独立采集器
+
+不依赖任何外部应用：扫码登录一次，之后一条命令拉全量。详见 `collector/README.md`。
+
+```powershell
+py -3 -m pip install playwright   # 一次性，仅登录需要
+playwright install chromium
+py -3 collector\login.py          # 扫码登录，存 data/session.json
+py -3 collector\pull.py --expect-nickname "<昵称>"
+```
+
+## 数据获取（备用）：DouyinDataReview 内置 MCP
 
 DouyinDataReview v1.43.0 自带官方 MCP（仅本机回环 + 令牌认证，创作者中心接口为只读白名单）。接入 Codex 后可由 AI 直接调用 `creator_read` 拉数，补齐 CSV 拿不到的流量来源、逐日趋势等字段。
 

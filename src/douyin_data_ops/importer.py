@@ -22,8 +22,7 @@ from .parsers import (
     parse_rate,
 )
 from .mcp import (
-    SNAPSHOT_SOURCE,
-    SNAPSHOT_TOOL,
+    SNAPSHOT_TOOLS,
     build_snapshot_rows,
     collected_at_from_snapshot,
     is_mcp_snapshot,
@@ -220,9 +219,10 @@ class DataImporter:
             collected_at_from_snapshot(payload)
             or datetime.now().isoformat(timespec="seconds")
         )
+        source_tool = SNAPSHOT_TOOLS.get(str(payload.get("source")), "douyin-direct")
         snapshot_id = self.database.create_snapshot(
             account_label=self.account_label,
-            source_tool=SNAPSHOT_TOOL,
+            source_tool=source_tool,
             collected_at=collected_at,
             source_file=source.name,
             sha256=digest,

@@ -26,6 +26,10 @@
 1. 在仓库目录运行 `py -3 -m unittest discover -s tests -v`，全部通过才继续；有失败先修或报告给我。
 2. 确认目录结构：`config/`、`scripts/`、`src/`、`data/inbox/`（没有 `data/inbox` 就创建）。
 
+## 第二步半（可选）：独立采集器依赖
+
+如果想用完全独立的 douyin-direct 采集器（不依赖 DouyinDataReview 应用）：运行 `py -3 -m pip install playwright` 和 `playwright install chromium`（约 150MB，仅登录环节需要；不想装就跳过，用 MCP/CSV 路径不影响）。
+
 ## 第三步：探测 DouyinDataReview 并配置 MCP
 
 1. 依次检查这些路径，找到第一个存在的 `mcpStdio.mjs`：

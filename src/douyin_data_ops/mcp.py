@@ -13,8 +13,11 @@ from datetime import datetime
 from typing import Any, Iterable, Mapping
 
 
-SNAPSHOT_SOURCE = "douyin-review-mcp"
-SNAPSHOT_TOOL = "DouyinDataReview-MCP"
+SNAPSHOT_SOURCES = ("douyin-review-mcp", "douyin-direct")
+SNAPSHOT_TOOLS = {
+    "douyin-review-mcp": "DouyinDataReview-MCP",
+    "douyin-direct": "douyin-direct",
+}
 
 # creator API metric key -> canonical work_metrics column
 METRIC_FIELDS: Mapping[str, str] = {
@@ -49,7 +52,7 @@ PLAY_SOURCE_NAMES: Mapping[str, str] = {
 def is_mcp_snapshot(payload: Any) -> bool:
     return (
         isinstance(payload, dict)
-        and payload.get("source") == SNAPSHOT_SOURCE
+        and payload.get("source") in SNAPSHOT_SOURCES
         and isinstance(payload.get("queries"), dict)
     )
 

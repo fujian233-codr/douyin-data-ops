@@ -7,7 +7,7 @@ description: Use when 用户要导入本人抖音创作者中心数据（MCP 拉
 
 ## 目标
 
-把用户本人的抖音创作者中心数据（优先走 DouyinDataReview 内置 MCP 自动拉取，每日 XLSX 与 CSV 导出作补充）变成可追溯快照，并生成可给人和 AI 使用的账号诊断报告，重点覆盖流量来源、每日趋势与跨快照环比。
+把用户本人的抖音创作者中心数据（首选 douyin-direct 独立采集器，MCP 与 CSV/XLSX 作备补）变成可追溯快照，并生成可给人和 AI 使用的账号诊断报告，重点覆盖流量来源、每日趋势与跨快照环比。
 
 ## 固定位置
 
@@ -26,7 +26,26 @@ description: Use when 用户要导入本人抖音创作者中心数据（MCP 拉
 - 不把账号数据上传到第三方服务。
 - 不抓取他人账号后台数据。
 
-## 首选流程：MCP 自动拉取（需要 Codex 已接入 douyin-review MCP 并重启过会话）
+## 首选流程：douyin-direct 独立采集器（不依赖 DouyinDataReview 应用）
+
+1. 检查 `<仓库根>/data/session.json` 是否存在且未过期；不存在则提示用户运行：
+
+```powershell
+py -3 -m pip install playwright
+playwright install chromium
+py -3 collector\login.py
+```
+
+2. 用户扫码登录后执行拉取（第 0 步身份核验是强制的，输出昵称/粉丝数必须人工看一眼）：
+
+```powershell
+py -3 collector\pull.py --expect-nickname "<期望昵称>"
+```
+
+3. 快照 `direct-YYYYMMDD-HHMM.json` 自动落 `data/inbox/`，走下方统一导入与报告命令。
+4. `login_required` → 提示重新扫码登录；`rate_limited` → 立即停止当天拉数。
+
+## 备用流程：MCP 自动拉取（需要 Codex 已接入 douyin-review MCP 并重启过会话）
 
 1. 确认用户已打开 DouyinDataReview 且创作者中心为登录态（应用必须保持运行，MCP 才连得上）。
 2. **第 0 步 · 账号身份核验**：先单条调用 `user_info`，把返回的 `nick_name` 和 `follower_count` 报给用户确认是目标账号；对不上立即停止（应用里切错账号是最常见的错数据来源，拉错号的数据绝不能入库）。
