@@ -12,6 +12,8 @@
 
 仓库位置：<告诉你的 AI 仓库地址，或 ZIP 解压到了哪里>
 
+没有 git 时：直接下载仓库 ZIP（浏览器打开仓库页面点 Code → Download ZIP，或让 AI 用镜像 `https://gh-proxy.com/https://github.com/<用户名>/douyin-data-ops/archive/refs/heads/main.zip` 下载），解压到固定目录后按下面步骤走。
+
 ## 第一步：环境检查
 
 1. 确认是 Windows。
@@ -60,6 +62,13 @@ args = ["<探测到的 mcpStdio.mjs 完整路径>"]
 - 只处理我本人账号的数据；不读 Cookie、不复制令牌文件、不碰 DouyinDataReview 数据目录。
 - 不把任何账号数据上传到第三方服务。
 - 不自动操作创作者中心页面。
+
+## 常见故障排查（首跑或日常使用卡住时按这条自救）
+
+1. **「令牌对不上：应用可能换过令牌」**：让用户完全退出 DouyinDataReview（注意托盘图标也要右键退出）→ 删除 `%APPDATA%\内容数据工作台\collector\mcp-token` → 重新打开应用。应用启动会自动生成新令牌并写盘，之后重试。
+2. **`creator_read` 返回里有 `"truncated": true`**：官方工具有 3 万字符响应上限。把批次减半重试；`work_list` 单页仍超限就减小 count（每页 2-3 条起步，截断就降到 1）。
+3. **拉到的数据对不上 / 和历史快照 video_id 交集为 0**：先单条调用 `user_info`，核对 `nick_name` 和 `follower_count` 是不是目标账号；不是就停下，让用户在应用里切换账号后重拉，错号数据不要导入。
+4. **连不上 47652 / 提示先把应用打开**：DouyinDataReview 没在运行或没登录，人工打开并登录后重试。
 
 ---
 

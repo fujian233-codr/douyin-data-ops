@@ -29,11 +29,12 @@ description: Use when 用户要导入本人抖音创作者中心数据（MCP 拉
 ## 首选流程：MCP 自动拉取（需要 Codex 已接入 douyin-review MCP 并重启过会话）
 
 1. 确认用户已打开 DouyinDataReview 且创作者中心为登录态（应用必须保持运行，MCP 才连得上）。
-2. 分批调用 `creator_read`（每批 ≤24 个查询，批次间温和间隔）：
-   - 账号总览：`dashboard`（recent_days 7/30）、`dashboard_fans`、`fans_summary`
-   - 作品全量：`work_list`（status=0, count=40, 按 max_cursor 翻页直到 has_more=false）
-   - 重点作品深挖（最新 20 条有指标作品）：`item_play_source`（item_id）、`item_trend`、`item_summarize`
-3. 把全部原始响应写成快照 `data/inbox/mcp-YYYYMMDD-HHMM.json`，结构固定：
+2. **第 0 步 · 账号身份核验**：先单条调用 `user_info`，把返回的 `nick_name` 和 `follower_count` 报给用户确认是目标账号；对不上立即停止（应用里切错账号是最常见的错数据来源，拉错号的数据绝不能入库）。
+3. 分批调用 `creator_read`。注意官方工具有 **3 万字符响应上限**，超限返回 `{ok:true, truncated:true, text:...}`，此时把批次减半重试；实战批次规则：
+   - 账号总览：每 2 条一批 —— `user_info`+`fans_summary`、`dashboard`(7)+`(30)`、`dashboard_fans`(7)+`(30)`
+   - 作品全量：`work_list`（status=0, **count=2 起步**，按 max_cursor 翻页直到 has_more=false；仍截断就降为 1）
+   - 重点作品深挖（最新 20 条有指标作品）：`item_play_source` / `item_trend` / `item_summarize`，**每批 3 条**，批间隔约 0.4 秒
+4. 把全部原始响应写成快照 `data/inbox/mcp-YYYYMMDD-HHMM.json`，结构固定：
 
 ```json
 {
@@ -48,8 +49,8 @@ description: Use when 用户要导入本人抖音创作者中心数据（MCP 拉
 }
 ```
 
-4. 在项目目录执行导入与报告（同下方命令），JSON 会和 CSV/XLSX 一起被识别。
-5. `login_required` → 提示用户在应用内重新登录；连接拒绝 → 提示用户打开 DouyinDataReview。
+5. 在项目目录执行导入与报告（同下方命令），JSON 会和 CSV/XLSX 一起被识别。
+6. `login_required` → 提示用户在应用内重新登录；连接拒绝 → 提示用户打开 DouyinDataReview。
 
 ## 补充流程：每日账号级 XLSX（5 秒完播率等账号级指标的唯一来源）
 
@@ -87,7 +88,7 @@ py -3 scripts\generate_report.py --account main --latest
    - 环比：平均播放变化、涨跌幅前五、新增作品（第二个快照起自动生成）；
    - 流量来源：推荐/搜索/关注/主页占比，作品级来源明细（MCP 数据才有）；
    - 诊断结论：区分已证实、初步判断、小基数观察、数据缺口；
-   - skill 反馈：提炼应更新到运营、叙事、选题雷达的经验。
+   - skill 反馈：提炼应更新到运营、叙事、选题雷达的经验，写入 douyin-operations skill 的经验回流文件：`<用户目录>\.codex\skills\douyin-operations\references\实战经验.md`（按其条目格式追加，只记数据验证过的结论）。
 
 ## 判断规则
 
@@ -106,6 +107,9 @@ py -3 scripts\generate_report.py --account main --latest
 - `unrecognized_json` / `invalid_json`：检查快照是否为 `douyin-review-mcp` 格式，不要手工改原始响应。
 - `unrecognized_xlsx` / `invalid_xlsx` / `no_valid_daily_rows`：确认是创作者中心「数据表现」导出的原始 XLSX，不要手工编辑。
 - `invalid_rate` / `invalid_count`：查看 `import_issues`，保留 NULL，不要手工猜值。
+- MCP 报「令牌对不上」：让用户完全退出应用（含托盘）→ 删除 `%APPDATA%\内容数据工作台\collector\mcp-token` → 重启应用（应用启动会重新生成令牌并写盘）。
+- `creator_read` 返回 `truncated:true`：批次减半重试；单条仍超限（如 work_list 页）就减小 count 参数。
+- 拉到的账号与预期不符（昵称/粉丝数对不上）：立即停止，丢弃本次数据，绝不能混入既有账号的库；让用户在应用里切换账号后重来。
 - 无快照：先完成作品数据导入，再生成报告。
 - 测试命令：
 
