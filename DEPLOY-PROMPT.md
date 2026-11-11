@@ -80,6 +80,8 @@ args = ["<探测到的 mcpStdio.mjs 完整路径>"]
 
 # 人工三步（AI 装完后你来做）
 
-1. **装并登录 DouyinDataReview**（如果还没装）：从 [Releases](https://github.com/ZhangYukwiver/DouyinDataReview/releases/latest) 下载安装，打开并登录你自己的抖音账号。SmartScreen 提示时点「更多信息 → 仍要运行」。
-2. **重启 Codex 会话**：新加的 MCP 要重启才会加载。
-3. **首跑验证**：保持 DouyinDataReview 开着，对 AI 说「拉一次数据」。AI 会走 `creator_read` 冒烟 → 拉全量作品和流量来源 → 生成报告。之后日常复盘只需说「复盘我的抖音账号」。
+1. **扫码登录（首选路径，不用装任何外部应用）**：对 AI 说「帮我登录抖音采集器」，AI 运行 `py -3 collector\login.py` 弹出浏览器，用你自己的抖音 App 扫码，窗口自动关闭即完成。
+2. **重启 Codex 会话**：新装的 skill 要重启才会加载（若只想用独立采集器，跳过重启也行）。
+3. **首跑验证**：对 AI 说「拉一次数据」。AI 会走「身份核验 → 全量作品 + 流量来源 + 趋势 → 入库 → 报告」。之后日常复盘只需说「复盘我的抖音账号」。
+
+> DouyinDataReview 应用已降级为**备用路径**（MCP 模式）：只有当你想用它时才需要从 [Releases](https://github.com/ZhangYukwiver/DouyinDataReview/releases/latest) 安装并登录；独立采集器完全不需要它。
