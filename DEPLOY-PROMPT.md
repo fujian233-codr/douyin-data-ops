@@ -1,6 +1,6 @@
 # 部署提示词（复制下方整段给你的 AI）
 
-把下面这段话完整复制给 Codex（或其他能操作本机文件的 AI），它会把这套抖音数据流水线在你的电脑上装好：
+把下面分割线之间的整段话复制给 Codex（或其他能操作本机文件的 AI），它会把这套抖音数据流水线在你的电脑上装好。
 
 ---
 
@@ -8,80 +8,54 @@
 
 ## 背景
 
-这是一套本地抖音创作者数据流水线：通过 DouyinDataReview（开源，MIT）的官方只读 MCP 拉取我本人创作者中心数据（作品指标、流量来源、粉丝画像），配合每日 XLSX 导入，生成账号诊断报告。零第三方依赖（纯 Python 标准库），数据只存本机 SQLite，不上传任何云端。
+这是一套本地抖音创作者数据流水线：扫码登录自己的抖音账号 → 只读拉取本人创作者中心数据（作品指标、流量来源、逐日趋势、粉丝概况）→ 本地 SQLite 快照 → 生成账号诊断报告（含环比、流量来源结构、每日趋势）。数据只存本机，不上传任何云端。主路径是自带的 douyin-direct 独立采集器（不用装其他应用）；DouyinDataReview MCP / CSV / XLSX 是备用路径。
 
-仓库位置（二选一）：
-- 优先：直接发 ZIP 包给朋友（微信/网盘均可），解压到固定目录后把路径告诉 AI。私有仓库，朋友没有 GitHub 权限时用这条路。
-- 或：`https://github.com/fujian233-codr/douyin-data-ops`（已获授权的协作者克隆用；国内克隆失败时试镜像 `https://gh-proxy.com/https://github.com/fujian233-codr/douyin-data-ops`，仅公开内容可用）
-
-没有 git 时：直接用朋友转发的 ZIP 包；拿不到 ZIP 再试镜像 `https://gh-proxy.com/https://github.com/fujian233-codr/douyin-data-ops/archive/refs/heads/main.zip`（私有仓库镜像不可用时，请仓库主人导出 ZIP 发给你）。
+仓库位置：我已把仓库 ZIP 解压到 `<把解压路径写在这里>`。（如果你能访问 GitHub，也可以克隆 `https://github.com/fujian233-codr/douyin-data-ops`。）
 
 ## 第一步：环境检查
 
 1. 确认是 Windows。
-2. 运行 `py -3 --version`，需要 Python 3.10 或更新；没有就去 python.org 装，装完继续。
-3. 运行 `node --version`；没有 Node 就停下来提醒我安装 Node LTS（这一步必须人工），装完继续。
-4. 确认 Codex 已安装（存在 `%USERPROFILE%\.codex\config.toml`）。
+2. 运行 `py -3 --version`，需要 Python 3.10 或更新；没有就提醒我去 python.org 安装（人工），装完继续。
 
 ## 第二步：项目自检
 
-1. 在仓库目录运行 `py -3 -m unittest discover -s tests -v`，全部通过才继续；有失败先修或报告给我。
-2. 确认目录结构：`config/`、`scripts/`、`src/`、`data/inbox/`（没有 `data/inbox` 就创建）。
+1. 在仓库目录运行 `py -3 -m unittest discover -s tests -v`，全部通过才继续；有失败先停下来报告，不要自行改代码。
+2. 确认目录结构：`config/`、`scripts/`、`src/`、`collector/`、`data/inbox/`（没有 `data/inbox` 就创建）。
 
-## 第二步半（可选）：独立采集器依赖
+## 第三步：安装独立采集器依赖（主路径）
 
-如果想用完全独立的 douyin-direct 采集器（不依赖 DouyinDataReview 应用）：运行 `py -3 -m pip install playwright` 和 `playwright install chromium`（约 150MB，仅登录环节需要；不想装就跳过，用 MCP/CSV 路径不影响）。
-
-## 第三步：探测 DouyinDataReview 并配置 MCP
-
-1. 依次检查这些路径，找到第一个存在的 `mcpStdio.mjs`：
-   - `%LOCALAPPDATA%\Programs\DouyinDataReview\resources\app.asar.unpacked\collector\mcpStdio.mjs`
-   - `%PROGRAMFILES%\DouyinDataReview\resources\app.asar.unpacked\collector\mcpStdio.mjs`
-   - `%LOCALAPPDATA%\Local\Programs\DouyinDataReview\resources\app.asar.unpacked\collector\mcpStdio.mjs`
-2. 都不存在时，在 `%LOCALAPPDATA%\Programs` 和 `%PROGRAMFILES%` 下搜索 `DouyinDataReview` 目录；仍找不到就问我装在哪里；我说没装就提醒我去 <https://github.com/ZhangYukwiver/DouyinDataReview/releases/latest> 下载安装（人工步骤）。
-3. 备份 `%USERPROFILE%\.codex\config.toml` 为 `config.toml.bak-<日期>`。
-4. 检查 config.toml 里是否已有 `[mcp_servers.douyin-review]`；没有就追加（路径里的反斜杠要写成 `\\`）：
-
-```toml
-[mcp_servers.douyin-review]
-command = "node"
-args = ["<探测到的 mcpStdio.mjs 完整路径>"]
-```
+1. 运行 `py -3 -m pip install playwright`。
+2. 运行 `py -3 -m playwright install chromium`（约 150MB，仅扫码登录环节需要；下载慢可设环境变量 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright` 后重试）。
 
 ## 第四步：安装 Skill
 
-1. 把仓库里的 `skills/douyin-data-ops/` 整个目录复制到 `%USERPROFILE%\.codex\skills\douyin-data-ops\`（已存在就先看差异再覆盖）。
+1. 把仓库里的 `skills/douyin-data-ops/` 整个目录复制到 `%USERPROFILE%\.codex\skills\douyin-data-ops\`（已存在就先给我看差异再覆盖）。
 
 ## 第五步：输出结果清单
 
-完成后告诉我：
-
-- Python / Node 版本
-- 测试是否全绿
-- DouyinDataReview 路径与 MCP 配置是否写入
-- Skill 是否安装
-- 下一步我要做的三件人工事项
+完成后告诉我：Python 版本、测试是否全绿、Playwright 是否装好、Skill 是否安装、下一步我要做的人工事项。
 
 ## 安全边界（必须遵守）
 
-- MCP 只允许调用 `creator_read` 只读工具；`send_chat_message`、`douyin_interact`、`download_video`、`switch_account` 等一律禁用。
-- 只处理我本人账号的数据；不读 Cookie、不复制令牌文件、不碰 DouyinDataReview 数据目录。
+- 只处理我本人账号的数据；采集器是只读白名单接口，没有任何写操作入口。
+- 登录会话文件 `data/session.json` 只在本机（权限 0600），绝不进 Git、绝不上传、绝不外发。
 - 不把任何账号数据上传到第三方服务。
 - 不自动操作创作者中心页面。
+- 每次拉数第 0 步都会打印账号昵称/粉丝数，必须给我看一眼确认是目标账号才能继续入库。
 
-## 常见故障排查（首跑或日常使用卡住时按这条自救）
+## 常见故障排查（首跑或日常卡住时按这条自救）
 
-1. **「令牌对不上：应用可能换过令牌」**：让用户完全退出 DouyinDataReview（注意托盘图标也要右键退出）→ 删除 `%APPDATA%\内容数据工作台\collector\mcp-token` → 重新打开应用。应用启动会自动生成新令牌并写盘，之后重试。
-2. **`creator_read` 返回里有 `"truncated": true`**：官方工具有 3 万字符响应上限。把批次减半重试；`work_list` 单页仍超限就减小 count（每页 2-3 条起步，截断就降到 1）。
-3. **拉到的数据对不上 / 和历史快照 video_id 交集为 0**：先单条调用 `user_info`，核对 `nick_name` 和 `follower_count` 是不是目标账号；不是就停下，让用户在应用里切换账号后重拉，错号数据不要导入。
-4. **连不上 47652 / 提示先把应用打开**：DouyinDataReview 没在运行或没登录，人工打开并登录后重试。
+1. **登录失效（`login_required`）**：重新运行 `py -3 collector\login.py` 扫码即可。
+2. **限流（`rate_limited`）**：立即停止，当天不要再拉。
+3. **拉到的账号不对 / 数据和历史对不上**：看身份核验输出的昵称和粉丝数；不是目标账号就停，删掉本次快照文件，确认账号后重拉。
+4. **接口报错（`platform_rejected` / `schema_changed`）**：抖音改版了，把报错原文发给仓库主人，不要自己猜着改。
 
 ---
 
 # 人工三步（AI 装完后你来做）
 
-1. **扫码登录（首选路径，不用装任何外部应用）**：对 AI 说「帮我登录抖音采集器」，AI 运行 `py -3 collector\login.py` 弹出浏览器，用你自己的抖音 App 扫码，窗口自动关闭即完成。
-2. **重启 Codex 会话**：新装的 skill 要重启才会加载（若只想用独立采集器，跳过重启也行）。
-3. **首跑验证**：对 AI 说「拉一次数据」。AI 会走「身份核验 → 全量作品 + 流量来源 + 趋势 → 入库 → 报告」。之后日常复盘只需说「复盘我的抖音账号」。
+1. **扫码登录**：对 AI 说「帮我登录抖音采集器」，它会运行 `py -3 collector\login.py` 弹出浏览器，用你自己的抖音 App 扫码，窗口自动关闭即完成（会打印账号昵称和粉丝数，看一眼确认）。
+2. **重启 Codex 会话**：新装的 skill 要重启才会加载（只用独立采集器的话跳过也行）。
+3. **首跑验证**：对 AI 说「拉一次数据」。它会走「身份核验 → 全量作品 + 流量来源 + 趋势 → 入库 → 报告」。之后日常复盘只需说「复盘我的抖音账号」。
 
-> DouyinDataReview 应用已降级为**备用路径**（MCP 模式）：只有当你想用它时才需要从 [Releases](https://github.com/ZhangYukwiver/DouyinDataReview/releases/latest) 安装并登录；独立采集器完全不需要它。
+> **备用路径**：DouyinDataReview 应用（MCP 模式）和 CSV/XLSX 手动导入仍然支持，但独立采集器完全不需要它们。想启用 MCP 备用的，安装 DouyinDataReview 后让 AI 把其 `mcpStdio.mjs` 路径写进 `%USERPROFILE%\.codex\config.toml` 的 `[mcp_servers.douyin-review]` 段并重启会话。
