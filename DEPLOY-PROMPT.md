@@ -10,9 +10,11 @@
 
 这是一套本地抖音创作者数据流水线：通过 DouyinDataReview（开源，MIT）的官方只读 MCP 拉取我本人创作者中心数据（作品指标、流量来源、粉丝画像），配合每日 XLSX 导入，生成账号诊断报告。零第三方依赖（纯 Python 标准库），数据只存本机 SQLite，不上传任何云端。
 
-仓库位置：<告诉你的 AI 仓库地址，或 ZIP 解压到了哪里>
+仓库位置（二选一）：
+- 优先：直接发 ZIP 包给朋友（微信/网盘均可），解压到固定目录后把路径告诉 AI。私有仓库，朋友没有 GitHub 权限时用这条路。
+- 或：`https://github.com/fujian233-codr/douyin-data-ops`（已获授权的协作者克隆用；国内克隆失败时试镜像 `https://gh-proxy.com/https://github.com/fujian233-codr/douyin-data-ops`，仅公开内容可用）
 
-没有 git 时：直接下载仓库 ZIP（浏览器打开仓库页面点 Code → Download ZIP，或让 AI 用镜像 `https://gh-proxy.com/https://github.com/<用户名>/douyin-data-ops/archive/refs/heads/main.zip` 下载），解压到固定目录后按下面步骤走。
+没有 git 时：直接用朋友转发的 ZIP 包；拿不到 ZIP 再试镜像 `https://gh-proxy.com/https://github.com/fujian233-codr/douyin-data-ops/archive/refs/heads/main.zip`（私有仓库镜像不可用时，请仓库主人导出 ZIP 发给你）。
 
 ## 第一步：环境检查
 
