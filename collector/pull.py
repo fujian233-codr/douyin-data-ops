@@ -119,7 +119,18 @@ def deep_dive(session: dict, works: list[dict], limit: int) -> dict[str, list[di
         ok_count = 0
         for work in metric_works:
             try:
-                payload = api.fetch(session, key, {"item_id": work["video_id"]})
+                params = {"item_id": work["video_id"]}
+                if key == "item_trend":
+                    # Official page shape: 累计趋势、按天、核心指标组。
+                    params.update(
+                        {
+                            "trend_type": "2",
+                            "time_unit": "1",
+                            "metrics_group": "0,1,3",
+                            "metrics": "view_count",
+                        }
+                    )
+                payload = api.fetch(session, key, params)
                 ok_count += 1
                 result[key].append(
                     {"item_id": work["video_id"], "ok": True, "response": payload}

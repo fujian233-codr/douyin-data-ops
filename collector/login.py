@@ -57,22 +57,43 @@ def main() -> int:
         print("正在打开 creator.douyin.com，请用抖音 App 扫码登录……")
         page.goto("https://creator.douyin.com/", wait_until="domcontentloaded")
 
+        user_agent = page.evaluate("() => navigator.userAgent")
+        request_headers = page.evaluate(
+            """() => {
+                const data = navigator.userAgentData || {};
+                return {
+                    'accept-language': navigator.language + ',' + (navigator.language || 'zh-CN'),
+                    'sec-ch-ua': data.brands ? data.brands.map(b => `"${b.brand}";v="${b.version}"`).join(',') : undefined,
+                    'sec-ch-ua-mobile': data.mobile === undefined ? undefined : String(data.mobile),
+                    'sec-ch-ua-platform': (data.platform || '').toLowerCase() || undefined
+                };
+            }"""
+        )
+
         deadline = time.monotonic() + LOGIN_TIMEOUT_SECONDS
         logged_in = False
-        while time.monotonic() < deadline:
-            cookies = context.cookies("https://www.douyin.com")
-            names = {cookie["name"] for cookie in cookies}
-            if names & {"sessionid", "sessionid_ss", "sid_tt", "sid_guard"}:
-                logged_in = True
-                break
-            page.wait_for_timeout(1000)
+        try:
+            while time.monotonic() < deadline:
+                cookies = context.cookies("https://www.douyin.com")
+                names = {cookie["name"] for cookie in cookies}
+                if names & {"sessionid", "sessionid_ss", "sid_tt", "sid_guard"}:
+                    logged_in = True
+                    break
+                time.sleep(1)
+        except Exception:
+            print("浏览器窗口被关闭，本次登录未完成。重新运行 py -3 collector\\login.py 再试。")
+            try:
+                browser.close()
+            except Exception:
+                pass
+            return 1
 
         if not logged_in:
             browser.close()
             print("等待扫码超时（5 分钟），未检测到登录态。重新运行再试。")
             return 1
 
-        page.wait_for_timeout(3000)  # let secondary cookies settle
+        time.sleep(3)  # let secondary cookies settle
 
         # Same-origin identity read inside the logged-in page: cookies attach
         # automatically and no extra session plumbing is needed.
@@ -94,22 +115,13 @@ def main() -> int:
         except Exception:
             pass
 
-        user_agent = page.evaluate("() => navigator.userAgent")
-        request_headers = page.evaluate(
-            """() => {
-                const data = navigator.userAgentData || {};
-                return {
-                    'accept-language': navigator.language + ',' + (navigator.language || 'zh-CN'),
-                    'sec-ch-ua': data.brands ? data.brands.map(b => `"${b.brand}";v="${b.version}"`).join(',') : undefined,
-                    'sec-ch-ua-mobile': data.mobile === undefined ? undefined : String(data.mobile),
-                    'sec-ch-ua-platform': (data.platform || '').toLowerCase() || undefined
-                };
-            }"""
-        )
         cookies = context.cookies("https://www.douyin.com") + context.cookies(
             "https://creator.douyin.com"
         )
-        browser.close()
+        try:
+            browser.close()
+        except Exception:
+            pass
 
     request_headers = {
         name: value for name, value in (request_headers or {}).items() if value

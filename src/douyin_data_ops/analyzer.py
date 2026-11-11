@@ -185,12 +185,25 @@ class WorkAnalyzer:
                 }
             )
 
-        current_plays = [row["play_count"] for row in self.rows if row.get("play_count") is not None]
-        previous_plays = [int(row["play_count"]) for row in previous_rows.values()]
+        # Compare like-for-like: only works that carry play counts in BOTH
+        # snapshots, otherwise averaging different sample sets misleads.
+        common_before = [
+            int(previous_rows[row["video_id"]]["play_count"])
+            for row in self.rows
+            if row.get("play_count") is not None
+            and row["video_id"] in previous_rows
+        ]
+        common_after = [
+            row["play_count"]
+            for row in self.rows
+            if row.get("play_count") is not None
+            and row["video_id"] in previous_rows
+        ]
         avg_delta = None
-        if current_plays and previous_plays:
-            avg_delta = round(mean(current_plays) - mean(previous_plays), 2)
+        if common_before and common_after:
+            avg_delta = round(mean(common_after) - mean(common_before), 2)
         movers = sorted(deltas, key=lambda item: -item["delta"])
+        fallers = [item for item in reversed(movers) if item["delta"] < 0][:5]
         return {
             "available": True,
             "previous_snapshot_id": previous["snapshot_id"],
@@ -198,7 +211,7 @@ class WorkAnalyzer:
             "compared_work_count": len(deltas),
             "average_play_delta": avg_delta,
             "risers": movers[:5],
-            "fallers": list(reversed(movers[-5:])),
+            "fallers": fallers,
             "new_works": sorted(
                 new_works, key=lambda item: -int(item["play_count"])
             )[:5],
