@@ -10,7 +10,9 @@
 
 这是一套本地抖音创作者数据流水线：扫码登录自己的抖音账号 → 只读拉取本人创作者中心数据（作品指标、流量来源、逐日趋势、粉丝概况）→ 本地 SQLite 快照 → 生成账号诊断报告（含环比、流量来源结构、每日趋势）。数据只存本机，不上传任何云端。主路径是自带的 douyin-direct 独立采集器（不用装其他应用）；DouyinDataReview MCP / CSV / XLSX 是备用路径。
 
-仓库位置：我已把仓库 ZIP 解压到 `<把解压路径写在这里>`。（如果你能访问 GitHub，也可以克隆 `https://github.com/fujian233-codr/douyin-data-ops`。）
+仓库位置（二选一）：
+- 克隆：`https://github.com/fujian233-codr/douyin-data-ops`（直连失败时用镜像 `https://gh-proxy.com/https://github.com/fujian233-codr/douyin-data-ops`）
+- 或：我已把仓库 ZIP 解压到 `<把解压路径写在这里>`（没有 git 时可下载 `https://gh-proxy.com/https://github.com/fujian233-codr/douyin-data-ops/archive/refs/heads/main.zip` 解压）
 
 ## 第一步：环境检查
 
